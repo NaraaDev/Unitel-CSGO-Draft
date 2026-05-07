@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SiteHeader } from "../_components/SiteHeader";
 import { StatusChip } from "../_components/StatusChip";
 import { Avatar } from "../_components/Avatar";
-import { MatchesArchive } from "./_components/MatchesArchive";
 import type { BestOf, DraftStateDto, PublicUser } from "@/lib/types";
 
 interface AdminUser {
@@ -42,7 +42,6 @@ export default function AdminPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [archiveKey, setArchiveKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -202,8 +201,7 @@ export default function AdminPage() {
       setCaptainOrder([]);
       setTeamNames({});
       setBestOf(1);
-      setArchiveKey((k) => k + 1);
-      setInfo("Тоглолт архивлагдлаа. Доороос байр оруулна уу.");
+      setInfo("Тоглолт архивлагдлаа. /admin/matches дээрээс байр оруулна уу.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -230,7 +228,12 @@ export default function AdminPage() {
       <main className="flex-1 max-w-7xl mx-auto px-6 py-10 w-full">
         <div className="flex items-center justify-between flex-wrap gap-3 mb-2">
           <p className="font-mono text-xs text-fire tracking-[0.4em] rise-in">{"// COMMAND.CONSOLE"}</p>
-          {draft && <StatusChip status={draft.status} />}
+          <div className="flex items-center gap-3">
+            <Link href="/admin/matches" className="btn-ghost !py-1 !px-3 !text-xs">
+              ТОГЛОЛТЫН АРХИВ →
+            </Link>
+            {draft && <StatusChip status={draft.status} />}
+          </div>
         </div>
         <h1 className="font-display text-5xl lg:text-7xl rise-in mb-6" style={{ ["--i" as never]: 1 }}>
           АДМИН <span className="text-fire">КОНСОЛ</span>
@@ -506,7 +509,6 @@ export default function AdminPage() {
           </section>
         </div>
 
-        <MatchesArchive refreshKey={archiveKey} />
       </main>
     </>
   );

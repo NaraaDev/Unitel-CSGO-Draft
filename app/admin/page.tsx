@@ -42,6 +42,7 @@ export default function AdminPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [archiveKey, setArchiveKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -181,6 +182,28 @@ export default function AdminPage() {
       setTeamNames({});
       setBestOf(1);
       setInfo("Draft reset");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function finishDraft() {
+    if (!confirm("Live-ийг дуусгаад тоглолтыг архивлах уу?")) return;
+    setBusy("finish");
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch("/api/admin/draft/finish", { method: "POST" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      setDraft(json.data);
+      setCaptainOrder([]);
+      setTeamNames({});
+      setBestOf(1);
+      setArchiveKey((k) => k + 1);
+      setInfo("Тоглолт архивлагдлаа. Доороос байр оруулна уу.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -426,11 +449,29 @@ export default function AdminPage() {
               </p>
               <button
                 onClick={startDraft}
-                disabled={busy !== null || draft?.status === "live" || captainCount < 2}
+                disabled={
+                  busy !== null ||
+                  draft?.status === "live" ||
+                  draft?.status === "completed" ||
+                  draft?.status === "stopped" ||
+                  captainCount < 2
+                }
                 className="btn-fire w-full relative"
               >
                 {busy === "start" ? "DEPLOYING..." : "► DRAFT START"}
               </button>
+              {draft &&
+                (draft.status === "live" ||
+                  draft.status === "completed" ||
+                  draft.status === "stopped") && (
+                  <button
+                    onClick={finishDraft}
+                    disabled={busy !== null}
+                    className="btn-ghost w-full mt-3 relative border-fire text-fire"
+                  >
+                    {busy === "finish" ? "FINISHING..." : "■ ДУУСГАХ"}
+                  </button>
+                )}
               <button
                 onClick={resetDraft}
                 disabled={busy !== null}
@@ -465,7 +506,7 @@ export default function AdminPage() {
           </section>
         </div>
 
-        <MatchesArchive />
+        <MatchesArchive refreshKey={archiveKey} />
       </main>
     </>
   );

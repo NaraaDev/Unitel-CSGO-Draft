@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar } from "../../_components/Avatar";
 import type { MatchDto } from "@/lib/types";
 
-export function MatchesArchive() {
+export function MatchesArchive({ refreshKey = 0 }: { refreshKey?: number }) {
   const [matches, setMatches] = useState<MatchDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export function MatchesArchive() {
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, refreshKey]);
 
   const pending = useMemo(() => matches.filter((m) => !m.finalized), [matches]);
   const finalized = useMemo(() => matches.filter((m) => m.finalized), [matches]);

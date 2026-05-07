@@ -113,22 +113,14 @@ export async function reconcileDraft(): Promise<DraftDoc> {
   if (draft.status !== "live") return draft;
 
   if (isAllTeamsFull(draft)) {
-    await archiveDraftIfPossible(draft, now);
     await drafts.updateOne(
       { _id: draft._id },
       {
         $set: {
-          status: "idle",
-          startAt: null,
-          startedAt: null,
-          endsAt: null,
-          completedAt: null,
-          captains: [],
-          currentTurnCaptainId: null,
-          currentTurnIndex: 0,
+          status: "completed",
+          completedAt: now,
           turnDeadline: null,
-          picks: [],
-          pickedPlayerIds: [],
+          currentTurnCaptainId: null,
           updatedAt: now,
         },
       },
@@ -143,7 +135,7 @@ export async function reconcileDraft(): Promise<DraftDoc> {
   return draft;
 }
 
-async function archiveDraftIfPossible(draft: DraftDoc, now: Date): Promise<void> {
+export async function archiveDraftIfPossible(draft: DraftDoc, now: Date): Promise<void> {
   if (!draft.startedAt) return;
   if (draft.captains.length === 0) return;
   const hasAnyPick = draft.picks.some((p) => !p.skipped && p.playerId !== null);

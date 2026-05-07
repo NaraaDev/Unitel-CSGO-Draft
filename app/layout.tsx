@@ -22,8 +22,8 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "UNITEL // CS:GO DRAFT",
-  description: "Live tactical drafting platform for the Unitel CS:GO league.",
+  title: "UNITEL MBD // CS:GO DRAFT",
+  description: "Live tactical drafting platform for the Unitel MBD CS:GO league.",
 };
 
 export default function RootLayout({

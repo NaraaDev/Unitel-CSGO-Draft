@@ -39,6 +39,8 @@ export async function getOrCreateDraft(): Promise<DraftDoc> {
     totalCapMinutes: 60,
     teamSize: 5,
     bestOf: 1,
+    draftType: "snake",
+    pickSequence: [],
     picks: [],
     pickedPlayerIds: [],
     updatedAt: now,
@@ -318,6 +320,8 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
     totalCapMinutes: draft.totalCapMinutes,
     teamSize: draft.teamSize,
     bestOf: (draft.bestOf ?? 1) as DraftStateDto["bestOf"],
+    draftType: (draft.draftType ?? "snake") as DraftStateDto["draftType"],
+    pickSequence: draft.pickSequence ?? [],
     captains: draft.captains
       .map((c) => {
         const u = captainNameById.get(c.userId);

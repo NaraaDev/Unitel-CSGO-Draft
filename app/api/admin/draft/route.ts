@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { ConfigureDraftSchema } from "@/lib/schemas";
 import { getDrafts, getUsers } from "@/lib/mongodb";
 import { buildDraftState, getOrCreateDraft } from "@/lib/draft-state";
+import { buildPickSequence } from "@/lib/draft-engine";
 
 export async function PATCH(req: Request): Promise<NextResponse> {
   const me = await getCurrentUser();
@@ -52,6 +53,12 @@ export async function PATCH(req: Request): Promise<NextResponse> {
     };
   });
 
+  const pickSequence = buildPickSequence(
+    captains,
+    parsed.data.teamSize,
+    parsed.data.draftType,
+  );
+
   const drafts = await getDrafts();
   await drafts.updateOne(
     { _id: draft._id },
@@ -70,6 +77,8 @@ export async function PATCH(req: Request): Promise<NextResponse> {
         totalCapMinutes: parsed.data.totalCapMinutes,
         teamSize: parsed.data.teamSize,
         bestOf: parsed.data.bestOf,
+        draftType: parsed.data.draftType,
+        pickSequence,
         picks: [],
         pickedPlayerIds: [],
         updatedAt: new Date(),

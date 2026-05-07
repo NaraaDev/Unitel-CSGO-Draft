@@ -41,6 +41,8 @@ export interface DraftCaptain {
 
 export type BestOf = 1 | 3 | 5 | 7;
 
+export type DraftType = "snake" | "linear" | "random";
+
 export interface DraftDoc {
   _id: ObjectId;
   status: DraftStatus;
@@ -56,6 +58,8 @@ export interface DraftDoc {
   totalCapMinutes: number;
   teamSize: number;
   bestOf: BestOf;
+  draftType: DraftType;
+  pickSequence: string[];
   picks: DraftPick[];
   pickedPlayerIds: string[];
   updatedAt: Date;
@@ -73,6 +77,8 @@ export interface DraftStateDto {
   totalCapMinutes: number;
   teamSize: number;
   bestOf: BestOf;
+  draftType: DraftType;
+  pickSequence: string[];
   captains: Array<{
     userId: string;
     order: number;

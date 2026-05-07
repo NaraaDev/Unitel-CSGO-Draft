@@ -29,12 +29,16 @@ export const BestOfSchema = z.union([
   z.literal(7),
 ]);
 
+export const DRAFT_TYPES = ["snake", "linear", "random"] as const;
+export const DraftTypeSchema = z.enum(DRAFT_TYPES);
+
 export const ConfigureDraftSchema = z.object({
   startAt: z.string().datetime(),
   pickWindowSeconds: z.number().int().min(5).max(300).default(60),
   totalCapMinutes: z.number().int().min(1).max(180).default(60),
   teamSize: z.number().int().min(2).max(10).default(5),
   bestOf: BestOfSchema.default(1),
+  draftType: DraftTypeSchema.default("snake"),
   captainOrder: z.array(objectIdHex).min(2).max(8),
   teamNames: z.record(objectIdHex, z.string().trim().max(40)).optional(),
 });

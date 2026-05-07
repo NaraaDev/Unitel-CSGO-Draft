@@ -1,32 +1,58 @@
-import type { DraftCaptain, DraftDoc, DraftPick } from "./types";
+import type { DraftCaptain, DraftDoc, DraftPick, DraftType } from "./types";
 
 const sortByOrder = (captains: DraftCaptain[]): DraftCaptain[] =>
   [...captains].sort((a, b) => a.order - b.order);
 
 /**
- * Snake order: forward → reverse → forward → ...
- * Slot index runs 0..(snakeSlots-1) where snakeSlots = N * (teamSize - 1).
- * Captain auto-fills slot 1 of their own team, so they pick `teamSize - 1` more times.
+ * Build the deterministic captain order for the entire draft.
+ * Length = captains.length * (teamSize - 1).
+ *
+ * snake  → forward, reverse, forward, ... per round
+ * linear → same captain order every round
+ * random → each round shuffled independently using Math.random()
  */
-export function captainAtSnakeIndex(
+export function buildPickSequence(
   captains: DraftCaptain[],
-  snakeIndex: number,
+  teamSize: number,
+  type: DraftType,
+): string[] {
+  const sorted = sortByOrder(captains).map((c) => c.userId);
+  const n = sorted.length;
+  const rounds = Math.max(0, teamSize - 1);
+  const seq: string[] = [];
+  for (let r = 0; r < rounds; r++) {
+    if (type === "snake") {
+      const order = r % 2 === 0 ? sorted : [...sorted].reverse();
+      seq.push(...order);
+    } else if (type === "linear") {
+      seq.push(...sorted);
+    } else {
+      const shuffled = [...sorted];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      seq.push(...shuffled);
+    }
+  }
+  return seq;
+}
+
+export function captainAtIndex(
+  pickSequence: string[],
+  captainCount: number,
+  index: number,
 ): { captainId: string; round: number; positionInRound: number } | null {
-  const n = captains.length;
-  if (n === 0) return null;
-  const sorted = sortByOrder(captains);
-  const round = Math.floor(snakeIndex / n);
-  const positionInRound = snakeIndex % n;
-  const forward = round % 2 === 0;
-  const slot = forward ? positionInRound : n - 1 - positionInRound;
+  if (pickSequence.length === 0 || index >= pickSequence.length) return null;
+  const n = Math.max(1, captainCount);
   return {
-    captainId: sorted[slot].userId,
-    round,
-    positionInRound,
+    captainId: pickSequence[index],
+    round: Math.floor(index / n),
+    positionInRound: index % n,
   };
 }
 
-export function snakeSlotCount(draft: Pick<DraftDoc, "captains" | "teamSize">): number {
+export function pickSlotCount(draft: Pick<DraftDoc, "captains" | "teamSize">): number {
   return draft.captains.length * Math.max(0, draft.teamSize - 1);
 }
 
@@ -65,7 +91,7 @@ export function isAllTeamsFull(draft: Pick<DraftDoc, "captains" | "teamSize" | "
  * Returns null when every team is full.
  */
 export function determineCurrentCaptain(
-  draft: Pick<DraftDoc, "captains" | "teamSize" | "picks">,
+  draft: Pick<DraftDoc, "captains" | "teamSize" | "picks" | "pickSequence">,
 ): string | null {
   const n = draft.captains.length;
   if (n === 0) return null;
@@ -76,12 +102,12 @@ export function determineCurrentCaptain(
   if (draft.captains.every((c) => isFull(c.userId))) return null;
 
   const attempts = draft.picks.length;
-  const snakeLen = snakeSlotCount(draft);
+  const seq = draft.pickSequence ?? [];
 
-  if (attempts < snakeLen) {
-    const slot = captainAtSnakeIndex(draft.captains, attempts);
+  if (attempts < seq.length) {
+    const slot = captainAtIndex(seq, n, attempts);
     if (slot && !isFull(slot.captainId)) return slot.captainId;
-    // Snake slot lands on a full team — fall through to makeup search.
+    // Sequence slot lands on a full team — fall through to makeup search.
   }
 
   // Phase 2: round-robin among incomplete teams (in captain order).

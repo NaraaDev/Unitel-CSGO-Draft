@@ -17,10 +17,34 @@ interface AdminUser {
   avatarId: number;
 }
 
+import type { DraftType } from "@/lib/types";
+
 const PICK_WINDOW = 60;
 const TIME_CAP = 60;
 const TEAM_SIZE = 5;
 const BO_OPTIONS: BestOf[] = [1, 3, 5, 7];
+
+const DRAFT_TYPE_OPTIONS: Array<{
+  value: DraftType;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "snake",
+    label: "SNAKE",
+    hint: "1→N, дараа N→1 ээлжлэн (хамгийн шударга)",
+  },
+  {
+    value: "linear",
+    label: "LINEAR",
+    hint: "1→N эргэлт болгонд адил дараалал",
+  },
+  {
+    value: "random",
+    label: "RANDOM",
+    hint: "Тойрогт бүрд санамсаргүй холиод",
+  },
+];
 
 function defaultStartAtLocal(): string {
   const d = new Date(Date.now() + 5 * 60 * 1000);
@@ -38,6 +62,7 @@ export default function AdminPage() {
   const [captainOrder, setCaptainOrder] = useState<string[]>([]);
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
   const [bestOf, setBestOf] = useState<BestOf>(1);
+  const [draftType, setDraftType] = useState<DraftType>("snake");
   const [startAt, setStartAt] = useState<string>(defaultStartAtLocal);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +95,9 @@ export default function AdminPage() {
       }
       if (draftRes.data?.bestOf) {
         setBestOf(draftRes.data.bestOf as BestOf);
+      }
+      if (draftRes.data?.draftType) {
+        setDraftType(draftRes.data.draftType as DraftType);
       }
       if (draftRes.data?.startAt) {
         const d = new Date(draftRes.data.startAt);
@@ -125,6 +153,7 @@ export default function AdminPage() {
         totalCapMinutes: TIME_CAP,
         teamSize: TEAM_SIZE,
         bestOf,
+        draftType,
         captainOrder,
         teamNames: trimmedNames,
       }),
@@ -413,7 +442,7 @@ export default function AdminPage() {
                 </div>
 
                 <div>
-                  <label className="label-tac">МАТЧИЙН ФОРМАТ</label>
+                  <label className="label-tac">МАТЧИЙН ФОРМАТ (BEST-OF)</label>
                   <div className="grid grid-cols-4 gap-2">
                     {BO_OPTIONS.map((n) => {
                       const active = bestOf === n;
@@ -429,6 +458,45 @@ export default function AdminPage() {
                           }`}
                         >
                           BO{n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label-tac">DRAFT ТӨРӨЛ</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {DRAFT_TYPE_OPTIONS.map((opt) => {
+                      const active = draftType === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setDraftType(opt.value)}
+                          className={`bevel border px-3 py-2.5 transition-all text-left flex items-center justify-between gap-2 ${
+                            active
+                              ? "border-fire bg-fire/[0.08] shadow-[0_0_18px_rgba(255,90,30,0.18)]"
+                              : "border-subtle hover:border-fire/60"
+                          }`}
+                        >
+                          <div>
+                            <div
+                              className={`font-display tracking-widest text-base ${
+                                active ? "text-fire" : "text-secondary"
+                              }`}
+                            >
+                              {opt.label}
+                            </div>
+                            <div className="font-mono text-[10px] text-muted leading-tight mt-0.5">
+                              {opt.hint}
+                            </div>
+                          </div>
+                          {active && (
+                            <span className="font-mono text-[10px] text-fire blink shrink-0">
+                              ●
+                            </span>
+                          )}
                         </button>
                       );
                     })}

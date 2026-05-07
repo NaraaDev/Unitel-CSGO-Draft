@@ -50,7 +50,7 @@ export function SiteHeader() {
     <header className="border-b border-subtle bg-raised/80 backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4 flex-wrap">
         <Link href="/" className="flex items-center gap-3 group">
-          <span className="font-display text-3xl tracking-[0.18em] text-fire">UNITEL</span>
+          <span className="font-display text-3xl tracking-[0.18em] text-fire">UNITEL MBD</span>
           <span className="font-mono text-sm text-muted hidden sm:inline">
             {"// CSGO_DRAFT."}<span className="text-secondary">v1</span>
           </span>

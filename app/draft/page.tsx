@@ -453,59 +453,72 @@ export default function DraftPage() {
             </p>
           </div>
 
-          <div
-            className="grid gap-4"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(1, Math.min(state.captains.length, 4))}, minmax(0, 1fr))`,
-            }}
-          >
+          <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
             {state.teams.map((team, idx) => {
               const isCurrent = state.currentTurnCaptainId === team.captainId;
               const isFlash = flashCaptainId === team.captainId;
               return (
                 <div
                   key={team.captainId}
-                  className={`tactical-card bevel corners p-4 relative transition-all ${
+                  className={`tactical-card bevel-strong corners p-6 relative transition-all overflow-hidden ${
                     isCurrent && state.status === "live" ? "border-fire glow-fire" : ""
                   } ${isFlash ? "lock-in" : ""}`}
                 >
                   {isCurrent && state.status === "live" && (
-                    <div className="absolute -top-3 left-3 font-display tracking-widest text-xs text-fire bg-base px-2 py-0.5 border border-fire">
+                    <div className="absolute -top-3 left-4 font-display tracking-widest text-xs text-fire bg-base px-2 py-0.5 border border-fire">
                       ON CLOCK
                     </div>
                   )}
-                  <div className="flex items-baseline justify-between mb-1">
-                    <p className="font-mono text-xs text-muted">TEAM #{idx + 1}</p>
-                    <p className="font-mono text-xs text-fire">
-                      {team.members.length}/{state.teamSize}
-                    </p>
+                  <div className="absolute top-0 right-0 font-display text-[8rem] text-fire/[0.05] leading-none pr-3 pt-1 select-none">
+                    {idx + 1}
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Avatar
-                      id={team.captainAvatarId}
-                      size={32}
-                      active={isCurrent && state.status === "live"}
-                    />
-                    <h3 className="font-display text-2xl tracking-wide truncate">
-                      {team.teamName ?? `TEAM #${idx + 1}`}
-                    </h3>
+
+                  {/* CAPTAIN HEADER BLOCK */}
+                  <div className="relative pb-5 mb-5 border-b border-fire/30">
+                    <div className="flex items-baseline justify-between mb-2">
+                      <p className="font-mono text-[11px] text-muted tracking-[0.3em]">
+                        TEAM #{idx + 1}
+                      </p>
+                      <p className="font-mono text-xs text-fire tabular-nums">
+                        {team.members.length}/{state.teamSize}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Avatar
+                        id={team.captainAvatarId}
+                        size={64}
+                        active={isCurrent && state.status === "live"}
+                      />
+                      <div className="min-w-0">
+                        <h3 className="font-display text-3xl md:text-4xl tracking-wide truncate leading-none">
+                          {team.teamName ?? `TEAM #${idx + 1}`}
+                        </h3>
+                        <p className="font-mono text-xs text-muted mt-1 truncate">
+                          CPT · {team.captainName}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <p className="font-mono text-[11px] text-muted mb-3 truncate">
-                    CPT · {team.captainName}
+
+                  {/* ROSTER BLOCK */}
+                  <p className="font-mono text-[10px] text-fire tracking-[0.3em] mb-3">
+                    {"// ROSTER"}
                   </p>
-                  <ol className="space-y-1.5">
+                  <ol className="space-y-2">
                     {Array.from({ length: state.teamSize }).map((_, slot) => {
                       const member = team.members[slot];
                       const isCaptainSlot = slot === 0;
                       return (
                         <li
                           key={slot}
-                          className={`flex items-center gap-2 px-2 py-1.5 border ${
-                            member ? "border-subtle bg-elevated" : "border-subtle/40"
+                          className={`flex items-center gap-3 px-3 py-3 border bevel ${
+                            member
+                              ? "border-subtle bg-elevated"
+                              : "border-subtle/40 border-dashed"
                           }`}
                         >
                           <span
-                            className={`font-mono text-[10px] w-5 ${
+                            className={`font-mono text-[11px] tracking-widest w-8 text-center ${
                               isCaptainSlot ? "text-fire" : "text-muted"
                             }`}
                           >
@@ -514,23 +527,25 @@ export default function DraftPage() {
                           {member ? (
                             <span
                               data-member-id={member.id}
-                              className={`flex items-center gap-2 ${
+                              className={`flex items-center gap-3 min-w-0 ${
                                 isFlash && member === team.members[team.members.length - 1]
                                   ? "slot-in"
                                   : ""
                               }`}
                             >
-                              <Avatar id={member.avatarId} size={22} />
-                              <span className="font-display tracking-wide truncate">
-                                {member.lastName.toUpperCase()}
-                              </span>
-                              <span className="text-secondary text-sm truncate">
-                                {member.firstName}
+                              <Avatar id={member.avatarId} size={36} />
+                              <span className="min-w-0">
+                                <span className="font-display text-lg tracking-wide truncate block">
+                                  {member.lastName.toUpperCase()}
+                                </span>
+                                <span className="text-secondary text-sm truncate block leading-tight">
+                                  {member.firstName}
+                                </span>
                               </span>
                             </span>
                           ) : (
-                            <span className="font-mono text-xs text-muted/50 tracking-widest">
-                              ── EMPTY ──
+                            <span className="font-mono text-xs text-muted/50 tracking-[0.3em]">
+                              ── EMPTY SLOT ──
                             </span>
                           )}
                         </li>

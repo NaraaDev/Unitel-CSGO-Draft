@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Stale Next.js typegen artifacts (Next 16 writes to .next/types now)
+    "types/**",
   ]),
 ]);
 

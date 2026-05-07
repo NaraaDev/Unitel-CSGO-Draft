@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SiteHeader } from "../_components/SiteHeader";
 import { StatusChip } from "../_components/StatusChip";
-import type { DraftStateDto, PublicUser } from "@/lib/types";
+import { Avatar } from "../_components/Avatar";
+import type { BestOf, DraftStateDto, PublicUser } from "@/lib/types";
 
 interface AdminUser {
   id: string;
@@ -12,11 +13,13 @@ interface AdminUser {
   firstName: string;
   phone: string;
   isAdmin: boolean;
+  avatarId: number;
 }
 
 const PICK_WINDOW = 60;
 const TIME_CAP = 60;
 const TEAM_SIZE = 5;
+const BO_OPTIONS: BestOf[] = [1, 3, 5, 7];
 
 function defaultStartAtLocal(): string {
   const d = new Date(Date.now() + 5 * 60 * 1000);
@@ -32,6 +35,8 @@ export default function AdminPage() {
   const [draft, setDraft] = useState<DraftStateDto | null>(null);
 
   const [captainOrder, setCaptainOrder] = useState<string[]>([]);
+  const [teamNames, setTeamNames] = useState<Record<string, string>>({});
+  const [bestOf, setBestOf] = useState<BestOf>(1);
   const [startAt, setStartAt] = useState<string>(defaultStartAtLocal);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +59,16 @@ export default function AdminPage() {
       setUsers(usersRes.data ?? []);
       setDraft(draftRes.data ?? null);
       if (draftRes.data?.captains?.length) {
-        setCaptainOrder(draftRes.data.captains.map((c: { userId: string }) => c.userId));
+        const captains = draftRes.data.captains as DraftStateDto["captains"];
+        setCaptainOrder(captains.map((c) => c.userId));
+        setTeamNames(
+          Object.fromEntries(
+            captains.map((c) => [c.userId, c.teamName ?? ""]),
+          ),
+        );
+      }
+      if (draftRes.data?.bestOf) {
+        setBestOf(draftRes.data.bestOf as BestOf);
       }
       if (draftRes.data?.startAt) {
         const d = new Date(draftRes.data.startAt);
@@ -94,26 +108,38 @@ export default function AdminPage() {
     });
   }
 
+  async function persistConfig(): Promise<DraftStateDto> {
+    const startAtIso = new Date(startAt).toISOString();
+    const trimmedNames: Record<string, string> = {};
+    for (const id of captainOrder) {
+      const v = (teamNames[id] ?? "").trim();
+      if (v) trimmedNames[id] = v;
+    }
+    const res = await fetch("/api/admin/draft", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startAt: startAtIso,
+        pickWindowSeconds: PICK_WINDOW,
+        totalCapMinutes: TIME_CAP,
+        teamSize: TEAM_SIZE,
+        bestOf,
+        captainOrder,
+        teamNames: trimmedNames,
+      }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    return json.data as DraftStateDto;
+  }
+
   async function saveConfig() {
     setBusy("config");
     setError(null);
     setInfo(null);
     try {
-      const startAtIso = new Date(startAt).toISOString();
-      const res = await fetch("/api/admin/draft", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startAt: startAtIso,
-          pickWindowSeconds: PICK_WINDOW,
-          totalCapMinutes: TIME_CAP,
-          teamSize: TEAM_SIZE,
-          captainOrder,
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
-      setDraft(json.data);
+      const next = await persistConfig();
+      setDraft(next);
       setInfo("Тохиргоо хадгалагдлаа");
     } catch (e) {
       setError((e as Error).message);
@@ -127,6 +153,9 @@ export default function AdminPage() {
     setError(null);
     setInfo(null);
     try {
+      // Auto-save config first so the user doesn't have to remember a separate "save" step.
+      await persistConfig();
+
       const res = await fetch("/api/admin/draft/start", { method: "POST" });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
@@ -148,6 +177,8 @@ export default function AdminPage() {
       if (!json.success) throw new Error(json.error);
       setDraft(json.data);
       setCaptainOrder([]);
+      setTeamNames({});
+      setBestOf(1);
       setInfo("Draft reset");
     } catch (e) {
       setError((e as Error).message);
@@ -237,9 +268,14 @@ export default function AdminPage() {
                       >
                         {selected ? `#${idx + 1}` : "+"}
                       </button>
-                      <span className="col-span-7">
-                        <span className="font-display tracking-wide">{u.lastName.toUpperCase()}</span>{" "}
-                        <span className="text-secondary">{u.firstName}</span>
+                      <span className="col-span-7 flex items-center gap-2">
+                        <Avatar id={u.avatarId} size={28} active={selected} />
+                        <span>
+                          <span className="font-display tracking-wide">
+                            {u.lastName.toUpperCase()}
+                          </span>{" "}
+                          <span className="text-secondary">{u.firstName}</span>
+                        </span>
                       </span>
                       <span className="col-span-2 font-mono text-xs text-muted">{u.phone}</span>
                       <span className="col-span-2 flex justify-end gap-1">
@@ -267,6 +303,40 @@ export default function AdminPage() {
                 })}
               </div>
             </div>
+
+            {captainCount > 0 && (
+              <div className="mt-5 border border-subtle bevel">
+                <div className="px-3 py-2 font-mono text-[10px] tracking-widest text-muted border-b border-subtle">
+                  БАГИЙН НЭР
+                </div>
+                <div className="divide-y divide-subtle/60">
+                  {captainOrder.map((id, idx) => {
+                    const u = users.find((x) => x.id === id);
+                    if (!u) return null;
+                    return (
+                      <div key={id} className="flex items-center gap-3 px-3 py-2">
+                        <span className="text-fire font-display text-base w-6 shrink-0">
+                          #{idx + 1}
+                        </span>
+                        <Avatar id={u.avatarId} size={26} />
+                        <span className="font-mono text-xs text-muted w-32 shrink-0 truncate">
+                          {u.lastName} {u.firstName}
+                        </span>
+                        <input
+                          className="input-tac !py-1.5 !px-2 !text-sm"
+                          maxLength={40}
+                          placeholder={`TEAM #${idx + 1}`}
+                          value={teamNames[id] ?? ""}
+                          onChange={(e) =>
+                            setTeamNames((prev) => ({ ...prev, [id]: e.target.value }))
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
 
           <section
@@ -297,6 +367,29 @@ export default function AdminPage() {
                   <div className="border border-subtle px-3 py-2">
                     <div className="text-muted text-[10px]">TEAM</div>
                     <div className="font-display text-lg">{TEAM_SIZE}</div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label-tac">МАТЧИЙН ФОРМАТ</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {BO_OPTIONS.map((n) => {
+                      const active = bestOf === n;
+                      return (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setBestOf(n)}
+                          className={`bevel border px-2 py-2 font-display tracking-wider text-base transition-colors ${
+                            active
+                              ? "border-fire text-fire bg-fire/[0.08]"
+                              : "border-subtle text-secondary hover:border-fire hover:text-fire"
+                          }`}
+                        >
+                          BO{n}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -334,11 +427,18 @@ export default function AdminPage() {
             {draft && draft.captains.length > 0 && (
               <div className="tactical-card bevel-strong corners p-6 relative">
                 <h2 className="font-display text-xl mb-3 tracking-wide">ТӨЛӨВ</h2>
+                <p className="font-mono text-[11px] text-muted mb-2">
+                  BO{draft.bestOf ?? 1} · {draft.captains.length} TEAMS · {draft.teamSize} OPS
+                </p>
                 <ol className="space-y-2 font-mono text-sm">
                   {draft.captains.map((c, i) => (
                     <li key={c.userId} className="flex items-center gap-3">
                       <span className="text-fire font-display text-lg w-6">#{i + 1}</span>
-                      <span className="text-secondary">
+                      <Avatar id={c.avatarId} size={28} />
+                      <span className="font-display tracking-wide">
+                        {c.teamName ?? `TEAM #${i + 1}`}
+                      </span>
+                      <span className="text-secondary text-xs ml-auto">
                         {c.lastName} {c.firstName}
                       </span>
                     </li>

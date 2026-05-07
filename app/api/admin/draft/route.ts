@@ -42,10 +42,15 @@ export async function PATCH(req: Request): Promise<NextResponse> {
     );
   }
 
-  const captains = parsed.data.captainOrder.map((userId, index) => ({
-    userId,
-    order: index,
-  }));
+  const teamNames = parsed.data.teamNames ?? {};
+  const captains = parsed.data.captainOrder.map((userId, index) => {
+    const raw = teamNames[userId]?.trim();
+    return {
+      userId,
+      order: index,
+      teamName: raw && raw.length > 0 ? raw : null,
+    };
+  });
 
   const drafts = await getDrafts();
   await drafts.updateOne(
@@ -64,6 +69,7 @@ export async function PATCH(req: Request): Promise<NextResponse> {
         pickWindowSeconds: parsed.data.pickWindowSeconds,
         totalCapMinutes: parsed.data.totalCapMinutes,
         teamSize: parsed.data.teamSize,
+        bestOf: parsed.data.bestOf,
         picks: [],
         pickedPlayerIds: [],
         updatedAt: new Date(),

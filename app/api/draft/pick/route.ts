@@ -4,7 +4,12 @@ import { getCurrentUser } from "@/lib/session";
 import { getDrafts, getUsers } from "@/lib/mongodb";
 import { PickSchema } from "@/lib/schemas";
 import { buildDraftState, reconcileDraft } from "@/lib/draft-state";
-import { captainAtPickIndex, totalPickCount } from "@/lib/draft-engine";
+import {
+  currentSlotMeta,
+  determineCurrentCaptain,
+  isAllTeamsFull,
+} from "@/lib/draft-engine";
+import type { DraftDoc } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -44,25 +49,39 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
 
-  // Validate target player exists, is registered, and isn't already picked or a captain
   const users = await getUsers();
   const player = await users.findOne({ _id: new ObjectId(parsed.data.playerId) });
   if (!player) {
     return NextResponse.json({ success: false, error: "Тоглогч олдсонгүй" }, { status: 404 });
   }
   if (player.isAdmin) {
-    return NextResponse.json({ success: false, error: "Админ-ыг сонгох боломжгүй" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "Админ-ыг сонгох боломжгүй" },
+      { status: 400 },
+    );
   }
 
-  const slot = captainAtPickIndex(draft.captains, draft.currentTurnIndex);
-  if (!slot) {
-    return NextResponse.json({ success: false, error: "Ээлж тооцох боломжгүй" }, { status: 500 });
-  }
-
+  const meta = currentSlotMeta(draft);
   const now = new Date();
-  const nextIndex = draft.currentTurnIndex + 1;
-  const nextSlot = captainAtPickIndex(draft.captains, nextIndex);
-  const stillRunning = nextIndex < totalPickCount(draft);
+
+  // Project the post-pick state to compute next captain.
+  const projected: DraftDoc = {
+    ...draft,
+    picks: [
+      ...draft.picks,
+      {
+        round: meta.round,
+        pickIndex: draft.picks.length,
+        captainId: me.id,
+        playerId: parsed.data.playerId,
+        pickedAt: now,
+        skipped: false,
+      },
+    ],
+  };
+
+  const nextCaptainId = determineCurrentCaptain(projected);
+  const stillRunning = nextCaptainId !== null && !isAllTeamsFull(projected);
 
   const drafts = await getDrafts();
   const result = await drafts.findOneAndUpdate(
@@ -77,8 +96,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     {
       $push: {
         picks: {
-          round: slot.round,
-          pickIndex: draft.currentTurnIndex,
+          round: meta.round,
+          pickIndex: draft.picks.length,
           captainId: me.id,
           playerId: parsed.data.playerId,
           pickedAt: now,
@@ -87,9 +106,11 @@ export async function POST(req: Request): Promise<NextResponse> {
         pickedPlayerIds: parsed.data.playerId,
       },
       $set: {
-        currentTurnIndex: nextIndex,
-        currentTurnCaptainId: stillRunning && nextSlot ? nextSlot.captainId : null,
-        turnDeadline: stillRunning ? new Date(now.getTime() + draft.pickWindowSeconds * 1000) : null,
+        currentTurnIndex: draft.currentTurnIndex + 1,
+        currentTurnCaptainId: stillRunning ? nextCaptainId : null,
+        turnDeadline: stillRunning
+          ? new Date(now.getTime() + draft.pickWindowSeconds * 1000)
+          : null,
         status: stillRunning ? "live" : "completed",
         completedAt: stillRunning ? null : now,
         updatedAt: now,
@@ -100,7 +121,10 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   if (!result) {
     return NextResponse.json(
-      { success: false, error: "Сонголт хүчингүй (тоглогчийг өөр ахлагч аваад байна эсвэл ээлж дамжсан)" },
+      {
+        success: false,
+        error: "Сонголт хүчингүй (тоглогчийг өөр ахлагч аваад байна эсвэл ээлж дамжсан)",
+      },
       { status: 409 },
     );
   }

@@ -9,6 +9,7 @@ export interface UserDoc {
   phone: string;
   passwordHash: string;
   isAdmin: boolean;
+  avatarId: number;
   createdAt: Date;
 }
 
@@ -18,6 +19,7 @@ export interface PublicUser {
   firstName: string;
   phone: string;
   isAdmin: boolean;
+  avatarId: number;
 }
 
 export type DraftStatus = "idle" | "scheduled" | "live" | "completed" | "stopped";
@@ -34,7 +36,10 @@ export interface DraftPick {
 export interface DraftCaptain {
   userId: string;
   order: number;
+  teamName?: string | null;
 }
+
+export type BestOf = 1 | 3 | 5 | 7;
 
 export interface DraftDoc {
   _id: ObjectId;
@@ -50,6 +55,7 @@ export interface DraftDoc {
   pickWindowSeconds: number;
   totalCapMinutes: number;
   teamSize: number;
+  bestOf: BestOf;
   picks: DraftPick[];
   pickedPlayerIds: string[];
   updatedAt: Date;
@@ -66,11 +72,14 @@ export interface DraftStateDto {
   pickWindowSeconds: number;
   totalCapMinutes: number;
   teamSize: number;
+  bestOf: BestOf;
   captains: Array<{
     userId: string;
     order: number;
     lastName: string;
     firstName: string;
+    avatarId: number;
+    teamName: string | null;
   }>;
   currentTurnCaptainId: string | null;
   currentTurnIndex: number;
@@ -88,10 +97,13 @@ export interface DraftStateDto {
     id: string;
     lastName: string;
     firstName: string;
+    avatarId: number;
   }>;
   teams: Array<{
     captainId: string;
     captainName: string;
-    members: Array<{ id: string; lastName: string; firstName: string }>;
+    captainAvatarId: number;
+    teamName: string | null;
+    members: Array<{ id: string; lastName: string; firstName: string; avatarId: number }>;
   }>;
 }

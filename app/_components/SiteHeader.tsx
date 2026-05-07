@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { PublicUser } from "@/lib/types";
+import { Avatar } from "./Avatar";
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -82,8 +83,11 @@ export function SiteHeader() {
                   ADMIN
                 </Link>
               )}
-              <span className="font-mono text-xs text-muted hidden md:inline">
-                {me.lastName} {me.firstName}
+              <span className="hidden md:flex items-center gap-2">
+                <Avatar id={me.avatarId} size={28} />
+                <span className="font-mono text-xs text-muted">
+                  {me.lastName} {me.firstName}
+                </span>
               </span>
               <button onClick={onLogout} className="btn-ghost !py-1.5 !px-3 !text-xs">
                 Гарах

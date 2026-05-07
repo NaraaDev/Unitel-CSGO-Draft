@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import { SiteHeader } from "../_components/SiteHeader";
 import { StatusChip } from "../_components/StatusChip";
+import { Avatar } from "../_components/Avatar";
 import type { DraftStateDto, PublicUser } from "@/lib/types";
 
 function fmt(seconds: number): string {
@@ -170,12 +171,15 @@ export default function DraftPage() {
             </div>
             {state.status === "live" && currentCaptain ? (
               <>
-                <div className="flex items-baseline gap-3 flex-wrap">
-                  <span className="font-mono text-xs text-muted">ON CLOCK</span>
-                  <span className="font-display text-3xl md:text-5xl tracking-wide">
-                    {currentCaptain.lastName.toUpperCase()}{" "}
-                    <span className="text-fire">{currentCaptain.firstName}</span>
-                  </span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Avatar id={currentCaptain.avatarId} size={48} active />
+                  <div>
+                    <div className="font-mono text-xs text-muted">ON CLOCK</div>
+                    <div className="font-display text-3xl md:text-5xl tracking-wide leading-none">
+                      {currentCaptain.lastName.toUpperCase()}{" "}
+                      <span className="text-fire">{currentCaptain.firstName}</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-3 flex items-baseline justify-between gap-4">
                   <div
@@ -224,8 +228,14 @@ export default function DraftPage() {
           </div>
 
           <div className="col-span-12 lg:col-span-5 tactical-card bevel-strong corners p-5">
-            <p className="font-mono text-xs tracking-[0.4em] text-fire mb-3">{"// TIMECAP"}</p>
-            <div className="flex items-baseline justify-between">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-mono text-xs tracking-[0.4em] text-fire">{"// TIMECAP"}</p>
+              <span className="chip text-fire">
+                <span className="chip-dot" />
+                BO{state.bestOf ?? 1}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
               <div>
                 <div className="font-display text-5xl tabular-nums">{totalRemaining.display}</div>
                 <p className="font-mono text-xs text-muted mt-1">CAP REMAINING</p>
@@ -284,15 +294,18 @@ export default function DraftPage() {
                     key={p.id}
                     onClick={() => pickPlayer(p.id)}
                     disabled={picking !== null}
-                    className="text-left tactical-card bevel border border-subtle hover:border-fire hover:bg-fire/[0.06] transition-colors p-3 group"
+                    className="text-left tactical-card bevel border border-subtle hover:border-fire hover:bg-fire/[0.06] transition-colors p-3 group flex items-center gap-3"
                   >
-                    <p className="font-display text-lg tracking-wide group-hover:text-fire">
-                      {p.lastName.toUpperCase()}
-                    </p>
-                    <p className="text-secondary text-sm">{p.firstName}</p>
-                    {isPicking && (
-                      <p className="font-mono text-[10px] text-fire mt-1 blink">SUBMITTING...</p>
-                    )}
+                    <Avatar id={p.avatarId} size={40} />
+                    <div className="min-w-0">
+                      <p className="font-display text-lg tracking-wide group-hover:text-fire truncate">
+                        {p.lastName.toUpperCase()}
+                      </p>
+                      <p className="text-secondary text-sm truncate">{p.firstName}</p>
+                      {isPicking && (
+                        <p className="font-mono text-[10px] text-fire blink">SUBMITTING...</p>
+                      )}
+                    </div>
                   </button>
                 );
               })}
@@ -313,7 +326,7 @@ export default function DraftPage() {
               <h2 className="font-display text-4xl tracking-wide">ROSTERS</h2>
             </div>
             <p className="font-mono text-xs text-muted">
-              SNAKE / TEAM_SIZE {state.teamSize} / WINDOW {state.pickWindowSeconds}s
+              SNAKE / BO{state.bestOf ?? 1} / TEAM_SIZE {state.teamSize} / WINDOW {state.pickWindowSeconds}s
             </p>
           </div>
 
@@ -344,9 +357,19 @@ export default function DraftPage() {
                       {team.members.length}/{state.teamSize}
                     </p>
                   </div>
-                  <h3 className="font-display text-2xl tracking-wide mb-3">
-                    {team.captainName.toUpperCase()}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Avatar
+                      id={team.captainAvatarId}
+                      size={32}
+                      active={isCurrent && state.status === "live"}
+                    />
+                    <h3 className="font-display text-2xl tracking-wide truncate">
+                      {team.teamName ?? `TEAM #${idx + 1}`}
+                    </h3>
+                  </div>
+                  <p className="font-mono text-[11px] text-muted mb-3 truncate">
+                    CPT · {team.captainName}
+                  </p>
                   <ol className="space-y-1.5">
                     {Array.from({ length: state.teamSize }).map((_, slot) => {
                       const member = team.members[slot];
@@ -366,11 +389,20 @@ export default function DraftPage() {
                             {isCaptainSlot ? "CPT" : `#${slot + 1}`}
                           </span>
                           {member ? (
-                            <span className={isFlash && member === team.members[team.members.length - 1] ? "slot-in" : ""}>
-                              <span className="font-display tracking-wide">
+                            <span
+                              className={`flex items-center gap-2 ${
+                                isFlash && member === team.members[team.members.length - 1]
+                                  ? "slot-in"
+                                  : ""
+                              }`}
+                            >
+                              <Avatar id={member.avatarId} size={22} />
+                              <span className="font-display tracking-wide truncate">
                                 {member.lastName.toUpperCase()}
-                              </span>{" "}
-                              <span className="text-secondary text-sm">{member.firstName}</span>
+                              </span>
+                              <span className="text-secondary text-sm truncate">
+                                {member.firstName}
+                              </span>
                             </span>
                           ) : (
                             <span className="font-mono text-xs text-muted/50 tracking-widest">
@@ -400,7 +432,7 @@ export default function DraftPage() {
         {state.picks.length > 0 && (
           <section className="mt-10">
             <p className="font-mono text-xs text-fire tracking-[0.4em] mb-2">{"// PICK_LOG"}</p>
-            <h3 className="font-display text-3xl mb-4">ИСТОРИ</h3>
+            <h3 className="font-display text-3xl mb-4">ТҮҮХ</h3>
             <div className="tactical-card bevel max-h-[260px] overflow-auto">
               {[...state.picks].reverse().map((p) => {
                 const captain = state.captains.find((c) => c.userId === p.captainId);

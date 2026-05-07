@@ -75,6 +75,7 @@ export function toPublicUser(user: UserDoc): PublicUser {
     firstName: user.firstName,
     phone: user.phone,
     isAdmin: user.isAdmin,
+    avatarId: user.avatarId ?? 0,
   };
 }
 

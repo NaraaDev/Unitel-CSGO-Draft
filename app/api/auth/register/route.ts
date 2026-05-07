@@ -39,6 +39,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     phone: parsed.data.phone,
     passwordHash,
     isAdmin: isAdminPhone(parsed.data.phone),
+    avatarId: parsed.data.avatarId,
     createdAt: now,
   };
 

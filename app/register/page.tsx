@@ -4,10 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SiteHeader } from "../_components/SiteHeader";
+import { AVATAR_COUNT, Avatar } from "../_components/Avatar";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ lastName: "", firstName: "", phone: "", password: "" });
+  const [form, setForm] = useState(() => ({
+    lastName: "",
+    firstName: "",
+    phone: "",
+    password: "",
+    avatarId: Math.floor(Math.random() * AVATAR_COUNT),
+  }));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [shake, setShake] = useState(false);
@@ -59,11 +66,8 @@ export default function RegisterPage() {
           >
             ХҮРЭЭНД <span className="text-fire">ОРОХ</span>
           </h1>
-          <p
-            className="text-secondary text-sm mb-8 rise-in"
-            style={{ ["--i" as never]: 2 }}
-          >
-            Бүртгэл хийсний дараа таныг тоглогчийн пүүлд бүртгэнэ.
+          <p className="text-secondary text-sm mb-8 rise-in" style={{ ["--i" as never]: 2 }}>
+            Аватар сонгоно уу — энэ нь хожим солигдохгүй.
           </p>
 
           <form
@@ -72,6 +76,34 @@ export default function RegisterPage() {
             style={{ ["--i" as never]: 3 }}
           >
             <div className="scanline" />
+
+            <div className="mb-5 relative">
+              <label className="label-tac">Аватар</label>
+              <div className="grid grid-cols-4 gap-2.5">
+                {Array.from({ length: AVATAR_COUNT }).map((_, i) => {
+                  const selected = form.avatarId === i;
+                  return (
+                    <button
+                      type="button"
+                      key={i}
+                      onClick={() => setForm({ ...form, avatarId: i })}
+                      className={`relative p-1 transition-transform ${
+                        selected ? "scale-105" : "hover:scale-105"
+                      }`}
+                      aria-label={`Аватар ${i + 1}`}
+                    >
+                      <Avatar id={i} size={56} active={selected} />
+                      {selected && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-fire text-[10px] font-mono flex items-center justify-center text-black border border-black">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4 stagger relative">
               <div className="rise-in" style={{ ["--i" as never]: 0 }}>
                 <label className="label-tac">Овог</label>

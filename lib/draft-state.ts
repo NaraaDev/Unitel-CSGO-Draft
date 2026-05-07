@@ -1,6 +1,11 @@
 import { ObjectId } from "mongodb";
 import { getDrafts, getUsers } from "./mongodb";
-import { captainAtPickIndex, isDraftDone, shouldStopByCap, totalPickCount } from "./draft-engine";
+import {
+  currentSlotMeta,
+  determineCurrentCaptain,
+  isAllTeamsFull,
+  shouldStopByCap,
+} from "./draft-engine";
 import type { DraftDoc, DraftStateDto, UserDoc } from "./types";
 
 const SINGLETON_FILTER = { kind: "singleton" } as const;
@@ -25,6 +30,7 @@ export async function getOrCreateDraft(): Promise<DraftDoc> {
     pickWindowSeconds: 60,
     totalCapMinutes: 60,
     teamSize: 5,
+    bestOf: 1,
     picks: [],
     pickedPlayerIds: [],
     updatedAt: now,
@@ -58,7 +64,7 @@ export async function reconcileDraft(): Promise<DraftDoc> {
     return (await drafts.findOne({ _id: draft._id })) as DraftDoc;
   }
 
-  if (isDraftDone(draft)) {
+  if (isAllTeamsFull(draft)) {
     await drafts.updateOne(
       { _id: draft._id },
       {
@@ -83,29 +89,45 @@ export async function reconcileDraft(): Promise<DraftDoc> {
 
 export async function skipCurrentTurn(draft: DraftDoc, now: Date): Promise<DraftDoc> {
   const drafts = await getDrafts();
-  const slot = captainAtPickIndex(draft.captains, draft.currentTurnIndex);
-  if (!slot) return draft;
+  if (!draft.currentTurnCaptainId) return draft;
 
-  const nextIndex = draft.currentTurnIndex + 1;
-  const nextSlot = captainAtPickIndex(draft.captains, nextIndex);
-  const stillRunning = nextIndex < totalPickCount(draft);
+  const meta = currentSlotMeta(draft);
+
+  // Build a "post-skip" draft snapshot to compute the next captain.
+  const projected: DraftDoc = {
+    ...draft,
+    picks: [
+      ...draft.picks,
+      {
+        round: meta.round,
+        pickIndex: draft.picks.length,
+        captainId: draft.currentTurnCaptainId,
+        playerId: null,
+        pickedAt: now,
+        skipped: true,
+      },
+    ],
+  };
+
+  const nextCaptainId = determineCurrentCaptain(projected);
+  const stillRunning = nextCaptainId !== null && !isAllTeamsFull(projected);
 
   await drafts.updateOne(
     { _id: draft._id, currentTurnIndex: draft.currentTurnIndex },
     {
       $push: {
         picks: {
-          round: slot.round,
-          pickIndex: draft.currentTurnIndex,
-          captainId: slot.captainId,
+          round: meta.round,
+          pickIndex: draft.picks.length,
+          captainId: draft.currentTurnCaptainId,
           playerId: null,
           pickedAt: now,
           skipped: true,
         },
       },
       $set: {
-        currentTurnIndex: nextIndex,
-        currentTurnCaptainId: stillRunning && nextSlot ? nextSlot.captainId : null,
+        currentTurnIndex: draft.currentTurnIndex + 1,
+        currentTurnCaptainId: stillRunning ? nextCaptainId : null,
         turnDeadline: stillRunning ? new Date(now.getTime() + draft.pickWindowSeconds * 1000) : null,
         status: stillRunning ? "live" : "completed",
         completedAt: stillRunning ? null : now,
@@ -123,9 +145,7 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
 
   const captainIds = draft.captains.map((c) => new ObjectId(c.userId));
   const captainDocs =
-    captainIds.length > 0
-      ? await users.find({ _id: { $in: captainIds } }).toArray()
-      : [];
+    captainIds.length > 0 ? await users.find({ _id: { $in: captainIds } }).toArray() : [];
 
   const captainNameById = new Map(captainDocs.map((u) => [u._id.toString(), u]));
 
@@ -136,7 +156,7 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
 
   const playersOnTeams = new Set<string>();
   for (const p of draft.picks) {
-    if (p.playerId) playersOnTeams.add(p.playerId);
+    if (p.playerId && !p.skipped) playersOnTeams.add(p.playerId);
   }
   for (const c of draft.captains) playersOnTeams.add(c.userId);
 
@@ -146,6 +166,7 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
       id: u._id.toString(),
       lastName: u.lastName,
       firstName: u.firstName,
+      avatarId: u.avatarId ?? 0,
     }));
 
   const teams = [...draft.captains]
@@ -153,12 +174,14 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
     .map((c) => {
       const captain = captainNameById.get(c.userId);
       const captainName = captain ? `${captain.lastName} ${captain.firstName}` : "—";
-      const members: Array<{ id: string; lastName: string; firstName: string }> = [];
+      const captainAvatarId = captain?.avatarId ?? 0;
+      const members: Array<{ id: string; lastName: string; firstName: string; avatarId: number }> = [];
       if (captain) {
         members.push({
           id: c.userId,
           lastName: captain.lastName,
           firstName: captain.firstName,
+          avatarId: captainAvatarId,
         });
       }
       for (const p of draft.picks) {
@@ -169,11 +192,18 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
               id: member._id.toString(),
               lastName: member.lastName,
               firstName: member.firstName,
+              avatarId: member.avatarId ?? 0,
             });
           }
         }
       }
-      return { captainId: c.userId, captainName, members };
+      return {
+        captainId: c.userId,
+        captainName,
+        captainAvatarId,
+        teamName: c.teamName ?? null,
+        members,
+      };
     });
 
   return {
@@ -186,6 +216,7 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
     pickWindowSeconds: draft.pickWindowSeconds,
     totalCapMinutes: draft.totalCapMinutes,
     teamSize: draft.teamSize,
+    bestOf: (draft.bestOf ?? 1) as DraftStateDto["bestOf"],
     captains: draft.captains
       .map((c) => {
         const u = captainNameById.get(c.userId);
@@ -194,6 +225,8 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
           order: c.order,
           lastName: u?.lastName ?? "—",
           firstName: u?.firstName ?? "—",
+          avatarId: u?.avatarId ?? 0,
+          teamName: c.teamName ?? null,
         };
       })
       .sort((a, b) => a.order - b.order),
@@ -210,7 +243,9 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
   };
 }
 
-export async function listAllUsers(): Promise<Array<{ id: string; lastName: string; firstName: string; phone: string; isAdmin: boolean }>> {
+export async function listAllUsers(): Promise<
+  Array<{ id: string; lastName: string; firstName: string; phone: string; isAdmin: boolean; avatarId: number }>
+> {
   const users = await getUsers();
   const docs = await users
     .find({}, { projection: { passwordHash: 0 } })
@@ -222,5 +257,6 @@ export async function listAllUsers(): Promise<Array<{ id: string; lastName: stri
     firstName: u.firstName,
     phone: u.phone,
     isAdmin: u.isAdmin,
+    avatarId: u.avatarId ?? 0,
   }));
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { SiteHeader } from "../_components/SiteHeader";
 import { StatusChip } from "../_components/StatusChip";
 import { Avatar } from "../_components/Avatar";
+import { MatchesArchive } from "./_components/MatchesArchive";
 import type { BestOf, DraftStateDto, PublicUser } from "@/lib/types";
 
 interface AdminUser {
@@ -463,6 +464,8 @@ export default function AdminPage() {
             )}
           </section>
         </div>
+
+        <MatchesArchive />
       </main>
     </>
   );

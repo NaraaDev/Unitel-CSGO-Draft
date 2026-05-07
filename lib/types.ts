@@ -107,3 +107,63 @@ export interface DraftStateDto {
     members: Array<{ id: string; lastName: string; firstName: string; avatarId: number }>;
   }>;
 }
+
+export interface MatchPlayerSnapshot {
+  userId: string;
+  lastName: string;
+  firstName: string;
+  avatarId: number;
+}
+
+export interface MatchTeam {
+  captainId: string;
+  captainLastName: string;
+  captainFirstName: string;
+  captainAvatarId: number;
+  teamName: string | null;
+  members: MatchPlayerSnapshot[];
+  finalRank: number | null;
+}
+
+export interface MatchDoc {
+  _id: ObjectId;
+  bestOf: BestOf;
+  totalCapMinutes: number;
+  startedAt: Date;
+  completedAt: Date;
+  teams: MatchTeam[];
+  finalized: boolean;
+  archivedAt: Date;
+  finalizedAt: Date | null;
+  updatedAt: Date;
+}
+
+export interface MatchDto {
+  id: string;
+  bestOf: BestOf;
+  totalCapMinutes: number;
+  startedAt: string;
+  completedAt: string;
+  archivedAt: string;
+  finalizedAt: string | null;
+  finalized: boolean;
+  teams: Array<{
+    captainId: string;
+    captainLastName: string;
+    captainFirstName: string;
+    captainAvatarId: number;
+    teamName: string | null;
+    members: MatchPlayerSnapshot[];
+    finalRank: number | null;
+  }>;
+}
+
+export interface LeaderboardEntry {
+  userId: string;
+  lastName: string;
+  firstName: string;
+  avatarId: number;
+  matches: number;
+  wins: number;
+  points: number;
+}

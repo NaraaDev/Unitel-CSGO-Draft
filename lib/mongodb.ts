@@ -1,5 +1,5 @@
 import { MongoClient, ServerApiVersion, type Db, type Collection } from "mongodb";
-import type { UserDoc, DraftDoc } from "./types";
+import type { UserDoc, DraftDoc, MatchDoc } from "./types";
 
 const uri = process.env.MONGODB_URI;
 if (!uri) {
@@ -45,6 +45,8 @@ async function ensureIndexes(db: Db): Promise<void> {
   await Promise.all([
     db.collection<UserDoc>("users").createIndex({ phone: 1 }, { unique: true }),
     db.collection<UserDoc>("users").createIndex({ createdAt: -1 }),
+    db.collection<MatchDoc>("matches").createIndex({ archivedAt: -1 }),
+    db.collection<MatchDoc>("matches").createIndex({ finalized: 1, archivedAt: -1 }),
   ]);
 }
 
@@ -56,4 +58,9 @@ export async function getUsers(): Promise<Collection<UserDoc>> {
 export async function getDrafts(): Promise<Collection<DraftDoc>> {
   const db = await getDb();
   return db.collection<DraftDoc>("drafts");
+}
+
+export async function getMatches(): Promise<Collection<MatchDoc>> {
+  const db = await getDb();
+  return db.collection<MatchDoc>("matches");
 }

@@ -44,3 +44,11 @@ export const PickSchema = z.object({
   playerId: objectIdHex,
 });
 export type PickInput = z.infer<typeof PickSchema>;
+
+export const FinalizeMatchSchema = z.object({
+  ranks: z.record(
+    objectIdHex,
+    z.number().int().min(1).max(8),
+  ),
+});
+export type FinalizeMatchInput = z.infer<typeof FinalizeMatchSchema>;

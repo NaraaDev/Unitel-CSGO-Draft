@@ -1,12 +1,20 @@
 import { ObjectId } from "mongodb";
-import { getDrafts, getUsers } from "./mongodb";
+import { getDrafts, getMatches, getUsers } from "./mongodb";
 import {
   currentSlotMeta,
   determineCurrentCaptain,
   isAllTeamsFull,
   shouldStopByCap,
 } from "./draft-engine";
-import type { DraftDoc, DraftStateDto, UserDoc } from "./types";
+import type {
+  DraftDoc,
+  DraftStateDto,
+  LeaderboardEntry,
+  MatchDoc,
+  MatchDto,
+  MatchTeam,
+  UserDoc,
+} from "./types";
 
 const SINGLETON_FILTER = { kind: "singleton" } as const;
 
@@ -79,6 +87,7 @@ export async function reconcileDraft(): Promise<DraftDoc> {
     draft.endsAt &&
     now.getTime() >= draft.endsAt.getTime()
   ) {
+    await archiveDraftIfPossible(draft, now);
     await drafts.updateOne(
       { _id: draft._id },
       {
@@ -104,14 +113,22 @@ export async function reconcileDraft(): Promise<DraftDoc> {
   if (draft.status !== "live") return draft;
 
   if (isAllTeamsFull(draft)) {
+    await archiveDraftIfPossible(draft, now);
     await drafts.updateOne(
       { _id: draft._id },
       {
         $set: {
-          status: "completed",
-          completedAt: now,
-          turnDeadline: null,
+          status: "idle",
+          startAt: null,
+          startedAt: null,
+          endsAt: null,
+          completedAt: null,
+          captains: [],
           currentTurnCaptainId: null,
+          currentTurnIndex: 0,
+          turnDeadline: null,
+          picks: [],
+          pickedPlayerIds: [],
           updatedAt: now,
         },
       },
@@ -124,6 +141,59 @@ export async function reconcileDraft(): Promise<DraftDoc> {
   }
 
   return draft;
+}
+
+async function archiveDraftIfPossible(draft: DraftDoc, now: Date): Promise<void> {
+  if (!draft.startedAt) return;
+  if (draft.captains.length === 0) return;
+  const hasAnyPick = draft.picks.some((p) => !p.skipped && p.playerId !== null);
+  if (!hasAnyPick) return;
+
+  const users = await getUsers();
+  const userObjectIds = [
+    ...draft.captains.map((c) => new ObjectId(c.userId)),
+    ...draft.pickedPlayerIds.map((id) => new ObjectId(id)),
+  ];
+  const docs = await users.find({ _id: { $in: userObjectIds } }).toArray();
+  const userMap = new Map(docs.map((u) => [u._id.toString(), u]));
+
+  const teams: MatchTeam[] = draft.captains.map((cap) => {
+    const captainDoc = userMap.get(cap.userId);
+    const memberPicks = draft.picks
+      .filter((p) => p.captainId === cap.userId && !p.skipped && p.playerId)
+      .sort((a, b) => a.pickIndex - b.pickIndex);
+    return {
+      captainId: cap.userId,
+      captainLastName: captainDoc?.lastName ?? "",
+      captainFirstName: captainDoc?.firstName ?? "",
+      captainAvatarId: captainDoc?.avatarId ?? 0,
+      teamName: cap.teamName ?? null,
+      members: memberPicks
+        .map((p) => userMap.get(p.playerId as string))
+        .filter((u): u is UserDoc => Boolean(u))
+        .map((u) => ({
+          userId: u._id.toString(),
+          lastName: u.lastName,
+          firstName: u.firstName,
+          avatarId: u.avatarId,
+        })),
+      finalRank: null,
+    };
+  });
+
+  const matches = await getMatches();
+  const match: Omit<MatchDoc, "_id"> = {
+    bestOf: draft.bestOf,
+    totalCapMinutes: draft.totalCapMinutes,
+    startedAt: draft.startedAt,
+    completedAt: draft.completedAt ?? now,
+    teams,
+    finalized: false,
+    archivedAt: now,
+    finalizedAt: null,
+    updatedAt: now,
+  };
+  await matches.insertOne(match as MatchDoc);
 }
 
 export async function skipCurrentTurn(draft: DraftDoc, now: Date): Promise<DraftDoc> {
@@ -280,6 +350,86 @@ export async function buildDraftState(draftDoc?: DraftDoc): Promise<DraftStateDt
     availablePlayers,
     teams,
   };
+}
+
+export function matchToDto(doc: MatchDoc): MatchDto {
+  return {
+    id: doc._id.toString(),
+    bestOf: doc.bestOf,
+    totalCapMinutes: doc.totalCapMinutes,
+    startedAt: doc.startedAt.toISOString(),
+    completedAt: doc.completedAt.toISOString(),
+    archivedAt: doc.archivedAt.toISOString(),
+    finalizedAt: doc.finalizedAt?.toISOString() ?? null,
+    finalized: doc.finalized,
+    teams: doc.teams.map((t) => ({ ...t })),
+  };
+}
+
+export async function listMatches(opts?: {
+  finalizedOnly?: boolean;
+}): Promise<MatchDto[]> {
+  const matches = await getMatches();
+  const filter = opts?.finalizedOnly ? { finalized: true } : {};
+  const docs = await matches
+    .find(filter)
+    .sort({ archivedAt: -1 })
+    .toArray();
+  return docs.map(matchToDto);
+}
+
+export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
+  const matches = await getMatches();
+  const docs = await matches.find({ finalized: true }).toArray();
+  const map = new Map<string, LeaderboardEntry>();
+
+  const ensure = (
+    userId: string,
+    lastName: string,
+    firstName: string,
+    avatarId: number,
+  ): LeaderboardEntry => {
+    let entry = map.get(userId);
+    if (!entry) {
+      entry = { userId, lastName, firstName, avatarId, matches: 0, wins: 0, points: 0 };
+      map.set(userId, entry);
+    }
+    return entry;
+  };
+
+  for (const match of docs) {
+    const totalTeams = match.teams.length;
+    if (totalTeams === 0) continue;
+    for (const team of match.teams) {
+      if (team.finalRank == null) continue;
+      const points = totalTeams - team.finalRank + 1;
+      const isWin = team.finalRank === 1;
+
+      const captainEntry = ensure(
+        team.captainId,
+        team.captainLastName,
+        team.captainFirstName,
+        team.captainAvatarId,
+      );
+      captainEntry.matches += 1;
+      captainEntry.points += points;
+      if (isWin) captainEntry.wins += 1;
+
+      for (const m of team.members) {
+        if (m.userId === team.captainId) continue;
+        const e = ensure(m.userId, m.lastName, m.firstName, m.avatarId);
+        e.matches += 1;
+        e.points += points;
+        if (isWin) e.wins += 1;
+      }
+    }
+  }
+
+  return [...map.values()].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return b.matches - a.matches;
+  });
 }
 
 export async function listAllUsers(): Promise<

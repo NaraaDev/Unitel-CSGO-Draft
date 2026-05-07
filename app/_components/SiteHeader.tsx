@@ -48,18 +48,18 @@ export function SiteHeader() {
 
   return (
     <header className="border-b border-subtle bg-raised/80 backdrop-blur-md sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-6 py-3 flex items-center gap-4 flex-wrap">
+      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4 flex-wrap">
         <Link href="/" className="flex items-center gap-3 group">
-          <span className="font-display text-2xl tracking-[0.18em] text-fire">UNITEL</span>
-          <span className="font-mono text-xs text-muted hidden sm:inline">
+          <span className="font-display text-3xl tracking-[0.18em] text-fire">UNITEL</span>
+          <span className="font-mono text-sm text-muted hidden sm:inline">
             {"// CSGO_DRAFT."}<span className="text-secondary">v1</span>
           </span>
         </Link>
 
-        <nav className="flex items-center gap-2 ml-auto">
+        <nav className="flex items-center gap-3 ml-auto">
           <Link
             href="/draft"
-            className={`font-display tracking-[0.16em] text-sm px-3 py-1.5 transition-colors ${
+            className={`font-display tracking-[0.16em] text-base px-3 py-2 transition-colors ${
               pathname === "/draft" ? "text-fire" : "text-secondary hover:text-fire"
             }`}
           >
@@ -68,15 +68,23 @@ export function SiteHeader() {
               <span className="ml-1 inline-block w-1.5 h-1.5 bg-current align-middle blink" />
             )}
           </Link>
+          <Link
+            href="/leaderboard"
+            className={`font-display tracking-[0.16em] text-base px-3 py-2 transition-colors ${
+              pathname === "/leaderboard" ? "text-fire" : "text-secondary hover:text-fire"
+            }`}
+          >
+            SCOREBOARD
+          </Link>
 
           {loading ? (
-            <span className="font-mono text-xs text-muted">...</span>
+            <span className="font-mono text-sm text-muted">...</span>
           ) : me ? (
             <>
               {me.isAdmin && (
                 <Link
                   href="/admin"
-                  className={`font-display tracking-[0.16em] text-sm px-3 py-1.5 transition-colors ${
+                  className={`font-display tracking-[0.16em] text-base px-3 py-2 transition-colors ${
                     pathname === "/admin" ? "text-fire" : "text-secondary hover:text-fire"
                   }`}
                 >
@@ -84,28 +92,28 @@ export function SiteHeader() {
                 </Link>
               )}
               <span className="hidden md:flex items-center gap-2">
-                <Avatar id={me.avatarId} size={28} />
-                <span className="font-mono text-xs text-muted">
+                <Avatar id={me.avatarId} size={32} />
+                <span className="font-mono text-sm text-muted">
                   {me.lastName} {me.firstName}
                 </span>
               </span>
-              <button onClick={onLogout} className="btn-ghost !py-1.5 !px-3 !text-xs">
+              <button onClick={onLogout} className="btn-ghost !py-2 !px-3 !text-sm">
                 Гарах
               </button>
             </>
           ) : (
             <>
-              <Link href="/login" className="btn-ghost !py-1.5 !px-3 !text-xs">
+              <Link href="/login" className="btn-ghost !py-2 !px-3 !text-sm">
                 Нэвтрэх
               </Link>
-              <Link href="/register" className="btn-fire !py-1.5 !px-3 !text-xs">
+              <Link href="/register" className="btn-fire !py-2 !px-3 !text-sm">
                 Бүртгүүлэх
               </Link>
             </>
           )}
         </nav>
 
-        <div className="w-full font-mono text-[10px] text-muted flex items-center justify-between gap-2 pt-2 border-t border-subtle/40">
+        <div className="w-full font-mono text-xs text-muted flex items-center justify-between gap-2 pt-2 border-t border-subtle/40">
           <span>SYS::{ts}</span>
           <span className="hidden sm:inline">CONN::SECURE</span>
           <span className="hidden md:inline">PROTOCOL::TURN_BASED</span>

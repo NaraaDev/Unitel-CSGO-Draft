@@ -1,8 +1,5 @@
 import Link from "next/link";
 import { SiteHeader } from "./_components/SiteHeader";
-import { Leaderboard } from "./_components/Leaderboard";
-
-export const dynamic = "force-dynamic";
 
 export default function Home() {
   const callouts = [
@@ -68,6 +65,9 @@ export default function Home() {
                 </Link>
                 <Link href="/draft" className="btn-ghost">
                   Live Draft Үзэх
+                </Link>
+                <Link href="/leaderboard" className="btn-ghost">
+                  ★ Scoreboard
                 </Link>
                 <Link href="/login" className="btn-ghost">
                   Нэвтрэх
@@ -146,8 +146,6 @@ export default function Home() {
             ))}
           </div>
         </section>
-
-        <Leaderboard />
 
         <section className="relative border-y border-subtle bg-raised">
           <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">

@@ -219,9 +219,11 @@ export default function DraftPage() {
               </div>
             ) : (
               <div>
-                <p className="font-display text-4xl md:text-6xl text-muted">STANDBY</p>
+                <p className="font-display text-4xl md:text-6xl text-muted">
+                  LIVE БАЙХГҮЙ БАЙНА
+                </p>
                 <p className="text-secondary text-sm mt-2 font-mono">
-                  Админ ахлагч сонгож, цаг товлоогүй байна.
+                  Одоогоор товлогдсон draft алга. Админ цаг товлох хүртэл хүлээнэ үү.
                 </p>
               </div>
             )}

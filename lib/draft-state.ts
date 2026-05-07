@@ -42,27 +42,66 @@ export async function getOrCreateDraft(): Promise<DraftDoc> {
 }
 
 export async function reconcileDraft(): Promise<DraftDoc> {
-  const draft = await getOrCreateDraft();
-  if (draft.status !== "live") return draft;
-
+  let draft = await getOrCreateDraft();
   const now = new Date();
   const drafts = await getDrafts();
 
-  if (shouldStopByCap(draft, now)) {
+  if (
+    draft.status === "scheduled" &&
+    draft.startAt &&
+    now.getTime() >= draft.startAt.getTime() &&
+    draft.captains.length >= 2
+  ) {
+    const firstCaptainId = determineCurrentCaptain(draft);
+    if (firstCaptainId) {
+      const startedAt = draft.startAt;
+      await drafts.updateOne(
+        { _id: draft._id, status: "scheduled" },
+        {
+          $set: {
+            status: "live",
+            startedAt,
+            endsAt: new Date(startedAt.getTime() + draft.totalCapMinutes * 60 * 1000),
+            currentTurnCaptainId: firstCaptainId,
+            currentTurnIndex: 0,
+            turnDeadline: new Date(now.getTime() + draft.pickWindowSeconds * 1000),
+            completedAt: null,
+            updatedAt: now,
+          },
+        },
+      );
+      draft = (await drafts.findOne({ _id: draft._id })) as DraftDoc;
+    }
+  }
+
+  if (
+    (draft.status === "live" || draft.status === "completed" || draft.status === "stopped") &&
+    draft.endsAt &&
+    now.getTime() >= draft.endsAt.getTime()
+  ) {
     await drafts.updateOne(
       { _id: draft._id },
       {
         $set: {
-          status: "stopped",
-          completedAt: now,
-          turnDeadline: null,
+          status: "idle",
+          startAt: null,
+          startedAt: null,
+          endsAt: null,
+          completedAt: null,
+          captains: [],
           currentTurnCaptainId: null,
+          currentTurnIndex: 0,
+          turnDeadline: null,
+          picks: [],
+          pickedPlayerIds: [],
           updatedAt: now,
         },
       },
     );
     return (await drafts.findOne({ _id: draft._id })) as DraftDoc;
   }
+
+  if (draft.status !== "live") return draft;
 
   if (isAllTeamsFull(draft)) {
     await drafts.updateOne(

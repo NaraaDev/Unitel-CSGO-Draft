@@ -257,17 +257,26 @@ export default function AdminPage() {
                   return (
                     <div
                       key={u.id}
-                      className={`grid grid-cols-12 items-center px-3 py-2 border-b border-subtle/60 transition-colors ${
+                      onClick={() => toggleCaptain(u.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleCaptain(u.id);
+                        }
+                      }}
+                      aria-pressed={selected}
+                      aria-label={selected ? "Хасах" : "Нэмэх"}
+                      className={`grid grid-cols-12 items-center px-3 py-2 border-b border-subtle/60 transition-colors cursor-pointer select-none ${
                         selected ? "bg-fire/[0.06]" : "hover:bg-fire/[0.03]"
                       }`}
                     >
-                      <button
-                        onClick={() => toggleCaptain(u.id)}
-                        className={`col-span-1 font-display text-lg ${selected ? "text-fire" : "text-muted hover:text-fire"}`}
-                        aria-label={selected ? "Хасах" : "Нэмэх"}
+                      <span
+                        className={`col-span-1 font-display text-lg ${selected ? "text-fire" : "text-muted"}`}
                       >
                         {selected ? `#${idx + 1}` : "+"}
-                      </button>
+                      </span>
                       <span className="col-span-7 flex items-center gap-2">
                         <Avatar id={u.avatarId} size={28} active={selected} />
                         <span>
@@ -282,14 +291,20 @@ export default function AdminPage() {
                         {selected && (
                           <>
                             <button
-                              onClick={() => moveCaptain(u.id, -1)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveCaptain(u.id, -1);
+                              }}
                               disabled={idx === 0}
                               className="font-mono text-xs px-2 py-1 border border-subtle hover:border-fire hover:text-fire disabled:opacity-30"
                             >
                               ↑
                             </button>
                             <button
-                              onClick={() => moveCaptain(u.id, 1)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveCaptain(u.id, 1);
+                              }}
                               disabled={idx === captainCount - 1}
                               className="font-mono text-xs px-2 py-1 border border-subtle hover:border-fire hover:text-fire disabled:opacity-30"
                             >

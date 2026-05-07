@@ -32,6 +32,17 @@ export default function DraftPage() {
   const lastPickRef = useRef<number>(0);
   const [flashCaptainId, setFlashCaptainId] = useState<string | null>(null);
 
+  type FlyingPick = {
+    key: string;
+    playerId: string;
+    avatarId: number;
+    lastName: string;
+    firstName: string;
+    source: { x: number; y: number; w: number; h: number };
+    dest: { x: number; y: number; w: number; h: number } | null;
+  };
+  const [flying, setFlying] = useState<FlyingPick[]>([]);
+
   useEffect(() => {
     let alive = true;
     fetch("/api/auth/me")
@@ -96,9 +107,27 @@ export default function DraftPage() {
     );
   }, [state, filter]);
 
-  async function pickPlayer(playerId: string) {
+  async function pickPlayer(playerId: string, sourceEl?: HTMLElement | null) {
     setPicking(playerId);
     setPickError(null);
+    if (sourceEl) {
+      const player = state?.availablePlayers.find((p) => p.id === playerId);
+      if (player) {
+        const r = sourceEl.getBoundingClientRect();
+        setFlying((prev) => [
+          ...prev,
+          {
+            key: `${playerId}-${Date.now()}`,
+            playerId,
+            avatarId: player.avatarId,
+            lastName: player.lastName,
+            firstName: player.firstName,
+            source: { x: r.left, y: r.top, w: r.width, h: r.height },
+            dest: null,
+          },
+        ]);
+      }
+    }
     try {
       const res = await fetch("/api/draft/pick", {
         method: "POST",
@@ -108,15 +137,51 @@ export default function DraftPage() {
       const json = await res.json();
       if (!json.success) {
         setPickError(json.error ?? "Сонголт амжилтгүй");
+        setFlying((prev) => prev.filter((f) => f.playerId !== playerId));
       } else if (json.data) {
         setState(json.data);
       }
     } catch {
       setPickError("Сүлжээний алдаа");
+      setFlying((prev) => prev.filter((f) => f.playerId !== playerId));
     } finally {
       setPicking(null);
     }
   }
+
+  useEffect(() => {
+    const pending = flying.filter((f) => f.dest === null);
+    if (pending.length === 0) return;
+    const raf = requestAnimationFrame(() => {
+      setFlying((prev) =>
+        prev.map((f) => {
+          if (f.dest) return f;
+          const el = document.querySelector<HTMLElement>(
+            `[data-member-id="${f.playerId}"]`,
+          );
+          if (!el) return f;
+          const r = el.getBoundingClientRect();
+          return {
+            ...f,
+            dest: { x: r.left, y: r.top, w: r.width, h: r.height },
+          };
+        }),
+      );
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [state, flying]);
+
+  useEffect(() => {
+    if (flying.length === 0) return;
+    const timers = flying
+      .filter((f) => f.dest)
+      .map((f) =>
+        window.setTimeout(() => {
+          setFlying((prev) => prev.filter((p) => p.key !== f.key));
+        }, 750),
+      );
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [flying]);
 
   async function exportImage() {
     if (!boardRef.current) return;
@@ -160,6 +225,56 @@ export default function DraftPage() {
   return (
     <>
       <SiteHeader />
+      {flying.map((f) => {
+        const baseStyle: React.CSSProperties = {
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: f.source.w,
+          height: f.source.h,
+          transformOrigin: "top left",
+          willChange: "transform, opacity",
+          transition:
+            "transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.65s ease-out",
+          zIndex: 60,
+          pointerEvents: "none",
+        };
+        let style: React.CSSProperties;
+        if (!f.dest) {
+          style = {
+            ...baseStyle,
+            transform: `translate(${f.source.x}px, ${f.source.y}px) scale(1)`,
+            opacity: 1,
+          };
+        } else {
+          const scale = Math.max(
+            0.18,
+            Math.min((f.dest.w * 1.15) / f.source.w, (f.dest.h * 2.4) / f.source.h),
+          );
+          const cx = f.dest.x + f.dest.w / 2 - (f.source.w * scale) / 2;
+          const cy = f.dest.y + f.dest.h / 2 - (f.source.h * scale) / 2;
+          style = {
+            ...baseStyle,
+            transform: `translate(${cx}px, ${cy}px) scale(${scale})`,
+            opacity: 0,
+          };
+        }
+        return (
+          <div
+            key={f.key}
+            style={style}
+            className="tactical-card bevel-strong border border-fire bg-fire/[0.18] flex items-center gap-4 p-4 shadow-[0_0_40px_var(--accent-fire)]"
+          >
+            <Avatar id={f.avatarId} size={72} active />
+            <div className="min-w-0">
+              <p className="font-display text-2xl tracking-wide text-fire truncate">
+                {f.lastName.toUpperCase()}
+              </p>
+              <p className="text-secondary text-base truncate">{f.firstName}</p>
+            </div>
+          </div>
+        );
+      })}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full">
         {/* TOP BAR — clock + status */}
         <div className="grid grid-cols-12 gap-4 mb-6">
@@ -288,24 +403,30 @@ export default function DraftPage() {
                 ERR // {pickError}
               </div>
             )}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[40vh] overflow-auto">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[60vh] overflow-auto pr-1">
               {filtered.map((p) => {
                 const isPicking = picking === p.id;
+                const isFlying = flying.some((f) => f.playerId === p.id);
                 return (
                   <button
                     key={p.id}
-                    onClick={() => pickPlayer(p.id)}
+                    onClick={(e) => pickPlayer(p.id, e.currentTarget)}
                     disabled={picking !== null}
-                    className="text-left tactical-card bevel border border-subtle hover:border-fire hover:bg-fire/[0.06] transition-colors p-3 group flex items-center gap-3"
+                    className={`text-left tactical-card bevel-strong border border-subtle hover:border-fire hover:bg-fire/[0.08] transition-all p-4 group flex items-center gap-4 relative overflow-hidden ${
+                      isFlying ? "opacity-0 scale-90 pointer-events-none" : ""
+                    }`}
                   >
-                    <Avatar id={p.avatarId} size={40} />
-                    <div className="min-w-0">
-                      <p className="font-display text-lg tracking-wide group-hover:text-fire truncate">
+                    <div className="absolute top-0 right-0 font-display text-[5rem] text-fire/[0.04] leading-none pr-2 select-none">
+                      {p.lastName.charAt(0).toUpperCase()}
+                    </div>
+                    <Avatar id={p.avatarId} size={72} />
+                    <div className="min-w-0 relative">
+                      <p className="font-display text-2xl tracking-wide group-hover:text-fire truncate">
                         {p.lastName.toUpperCase()}
                       </p>
-                      <p className="text-secondary text-sm truncate">{p.firstName}</p>
+                      <p className="text-secondary text-base truncate">{p.firstName}</p>
                       {isPicking && (
-                        <p className="font-mono text-[10px] text-fire blink">SUBMITTING...</p>
+                        <p className="font-mono text-[10px] text-fire blink mt-1">SUBMITTING...</p>
                       )}
                     </div>
                   </button>
@@ -392,6 +513,7 @@ export default function DraftPage() {
                           </span>
                           {member ? (
                             <span
+                              data-member-id={member.id}
                               className={`flex items-center gap-2 ${
                                 isFlash && member === team.members[team.members.length - 1]
                                   ? "slot-in"
